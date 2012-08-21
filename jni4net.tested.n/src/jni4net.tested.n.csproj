@@ -85,19 +85,19 @@
   <ItemGroup>
     <ProjectReference Include="..\..\jni4net.n.w32.v20\src\jni4net.n.w32.v20.csproj">
       <Project>{774AED55-B9EC-457D-8EEB-1B2481C578B2}</Project>
-      <Name>jni4net.n.w32.v20.10</Name>
+      <Name>jni4net.n.w32.v20</Name>
     </ProjectReference>
     <ProjectReference Include="..\..\jni4net.n.w32.v40\src\jni4net.n.w32.v40.csproj">
       <Project>{774AED55-E9EC-457D-8EEB-1B2481C578B2}</Project>
-      <Name>jni4net.n.w32.v40.10</Name>
+      <Name>jni4net.n.w32.v40</Name>
     </ProjectReference>
     <ProjectReference Include="..\..\jni4net.n.w64.v20\src\jni4net.n.w64.v20.csproj">
       <Project>{774AED55-B9EC-447D-8EEB-1B2481C578B2}</Project>
-      <Name>jni4net.n.w64.v20.10</Name>
+      <Name>jni4net.n.w64.v20</Name>
     </ProjectReference>
     <ProjectReference Include="..\..\jni4net.n.w64.v40\src\jni4net.n.w64.v40.csproj">
       <Project>{774AED55-E9EC-447D-8EEB-1B2481C578B2}</Project>
-      <Name>jni4net.n.w64.v40.10</Name>
+      <Name>jni4net.n.w64.v40</Name>
     </ProjectReference>
     <ProjectReference Include="..\..\jni4net.n\src\jni4net.n.csproj">
       <Project>{774AED55-B9EC-4C7D-8EEB-1B2481C578B2}</Project>

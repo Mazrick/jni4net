@@ -23,7 +23,9 @@ namespace net.sf.jni4net.proxygen.config {
     [System.Xml.Serialization.XmlTypeAttribute(Namespace="http://jni4net.sf.net/0.8.6.0/toolConfig.xsd")]
     [System.Xml.Serialization.XmlRootAttribute("jni4net-proxygen", Namespace="http://jni4net.sf.net/0.8.6.0/toolConfig.xsd", IsNullable=false)]
     public partial class ToolConfig {
-        
+
+        private string workDirField;
+
         private string targetDirJvmField;
         
         private string targetDirClrField;
@@ -46,6 +48,19 @@ namespace net.sf.jni4net.proxygen.config {
             this.skipSignaturesField = false;
             this.skipInterfaceTypeInfoField = false;
             this.verboseField = false;
+        }
+
+        /// <remarks/>
+        public string WorkDir
+        {
+            get
+            {
+                return this.workDirField;
+            }
+            set
+            {
+                this.workDirField = value;
+            }
         }
         
         /// <remarks/>

@@ -32,6 +32,7 @@ using System.Xml.Serialization;
 using net.sf.jni4net.proxygen.config;
 using net.sf.jni4net.proxygen.generator;
 using net.sf.jni4net.proxygen.model;
+using System.Collections.Generic;
 
 namespace net.sf.jni4net.proxygen
 {
@@ -94,12 +95,19 @@ namespace net.sf.jni4net.proxygen
         [EnvironmentPermission(SecurityAction.Assert, Unrestricted = true)]
         private static int Work(string[] args)
         {
+            foreach (String arg in args)
+            {
+                if (arg == "-debug")
+                {
+                    Console.WriteLine("Execution in Debug Mode Started, Waiting for key press, Please attach to process now.");
+                    Console.ReadKey();
+                }
+            }
+
             ToolConfig cfg;
             string mainEntry = args[0];
             string ext = Path.GetExtension(mainEntry).ToLowerInvariant();
-            string workDir = null;
-            string clr = null;
-            string jvm = null;
+
             if (ext == ".xml")
             {
                 var ser = new XmlSerializer(typeof(ToolConfig));
@@ -115,14 +123,14 @@ namespace net.sf.jni4net.proxygen
                 if (isDll || isCp)
                 {
                     cfg = new ToolConfig();
-                    workDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+                    //workDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
                     for (int i = 1; i < args.Length;i++ )
                     {
                         if (args.Length > i + 1)
                         {
-                            ParseWd(ref workDir, args[i], args[i + 1]);
-                            ParseCp(mainEntry, cfg, isCp, args[i], args[i + 1]);
-                            ParseDl(mainEntry, cfg, isDll, args[i], args[i + 1]);
+                            ParseWd(cfg, args[i], args[i + 1]);
+                            ParseCp(cfg, isCp, args[i], args[i + 1]);
+                            ParseDl(cfg, isDll, args[i], args[i + 1]);
                         }
                     }
                     if (isDll)
@@ -142,15 +150,6 @@ namespace net.sf.jni4net.proxygen
                         cfg.ClassPath[cfg.ClassPath.Length - 1] = new ClassPath() { Path = mainEntry, Generate = true };
                     }
 
-
-
-                    Directory.CreateDirectory(workDir);
-                    clr = Path.Combine(workDir, "clr");
-                    jvm = Path.Combine(workDir, "jvm");
-                    Directory.CreateDirectory(clr);
-                    Directory.CreateDirectory(jvm);
-                    cfg.TargetDirClr = clr;
-                    cfg.TargetDirJvm = jvm;
                 }
                 else
                 {
@@ -158,6 +157,24 @@ namespace net.sf.jni4net.proxygen
                 }
             }
 
+            //Create Folders
+            if (String.IsNullOrEmpty(cfg.WorkDir))
+            {
+                cfg.WorkDir = "work";
+            }
+            if(String.IsNullOrEmpty(cfg.TargetDirClr)){
+                cfg.TargetDirClr = Path.Combine(cfg.WorkDir, "clr");
+            }
+            if(String.IsNullOrEmpty(cfg.TargetDirJvm)){
+                cfg.TargetDirJvm = Path.Combine(cfg.WorkDir, "jvm"); ;
+            }
+
+            Directory.CreateDirectory(cfg.WorkDir);
+            Directory.CreateDirectory(cfg.TargetDirClr);
+            Directory.CreateDirectory(cfg.TargetDirJvm);
+
+
+ 
             Generator.config = cfg;
             Repository.config = cfg;
             Repository.Register();
@@ -165,14 +182,13 @@ namespace net.sf.jni4net.proxygen
             Generator.GenerateAll();
             Console.WriteLine("proxygen done");
 
-
-            if (workDir != null)
+            if (cfg.WorkDir != null)
             {
                 string fname = Path.GetFileNameWithoutExtension(mainEntry);
-                WriteBuild(workDir, jvm, fname);
+                WriteBuild(cfg.WorkDir, cfg.TargetDirJvm, fname);
 
                 var ser = new XmlSerializer(typeof (ToolConfig));
-                using (var fs = new FileStream(Path.Combine(workDir, fname + ".proxygen.xml"), FileMode.Create))
+                using (var fs = new FileStream(Path.Combine(cfg.WorkDir, fname + ".proxygen.xml"), FileMode.Create))
                 {
                     using (XmlWriter xw = XmlWriter.Create(fs, new XmlWriterSettings {Indent = true}))
                     {
@@ -186,6 +202,7 @@ namespace net.sf.jni4net.proxygen
 
         private static void WriteBuild(string workDir, string jvm, string fname)
         {
+
             using (var jw = new StreamWriter(Path.Combine(workDir, "build.cmd")))
             {
                 jw.WriteLine("@echo off");
@@ -204,13 +221,12 @@ namespace net.sf.jni4net.proxygen
                     jw.Write(";");
                 }
                 jw.Write(" ");
-                foreach (string file in Generator.filesJVM)
+                List<String> jvmPaths = GetNormalizedFolderPathsFromFileURIs(Generator.filesJVM, jvm.IndexOf("\\") > 0 ? jvm.Substring(jvm.LastIndexOf("\\")+1) : jvm);
+                foreach (string filePath in jvmPaths)
                 {
-                    int i = file.IndexOf("\\jvm\\");
-                    string output = file.Substring(i+1);
                     jw.Write('"');
-                    jw.Write(output);
-                    jw.Write('"');
+                    jw.Write(filePath);
+                    jw.Write("*.java\"");
                     jw.Write(" ");
                 }
                 jw.WriteLine();
@@ -221,12 +237,13 @@ namespace net.sf.jni4net.proxygen
                 jw.WriteLine("echo " + fname + ".j4n.jar ");
                 jw.Write("jar cvf ");
                 jw.Write(fname + ".j4n.jar ");
-                foreach (string file in Generator.TypesJVM.Values)
+
+                List<String> jvmClassPaths = GetFoldersFromClassTypes(new List<String>(Generator.TypesJVM.Values));
+                foreach (string file in jvmClassPaths)
                 {
                     jw.Write(" -C target\\classes ");
-                    string output = file.Replace(".", "\\") + ".class";
                     jw.Write('"');
-                    jw.Write(output);
+                    jw.Write(file);
                     jw.Write('"');
                     jw.Write(" ");
                 }
@@ -261,15 +278,49 @@ namespace net.sf.jni4net.proxygen
             }
         }
 
-        private static void ParseWd(ref string workDir, string swtch, string args)
+        public static List<string> GetFoldersFromClassTypes(List<string> types)
+        {
+            List<String> folders = new List<string>(10);
+            foreach (String file in types)
+            {
+                String classFile = file.Replace(".", "\\") + ".class";
+                String filePath = Path.GetDirectoryName(classFile);
+                if (filePath.EndsWith("\\")) filePath = filePath.Substring(0, filePath.Length -1); 
+                if (!folders.Contains(filePath))
+                    folders.Add(filePath);
+            }
+            return folders;
+        }
+
+        public static List<string> GetNormalizedFolderPathsFromFileURIs(List<string> files, String rootFolder)
+        {
+            List<String> folders = new List<string>(10);
+            foreach (String file in files)
+            {
+                String filePath = Path.GetDirectoryName(file);
+                if (!filePath.EndsWith("\\")) filePath += "\\";
+                if (!filePath.StartsWith("\\")) filePath = "\\" + filePath;
+                int i = filePath.IndexOf(String.Format("\\{0}\\", rootFolder));
+                if (i < 0)
+                    throw new Exception(String.Format("File Path must be within the Root folder(\"{1}\").\n Actual Value = {0}", filePath, rootFolder));
+
+                filePath = filePath.Substring(i + 1);
+
+                if (!folders.Contains(filePath))
+                    folders.Add(filePath);
+            }
+            return folders;
+        }
+
+        private static void ParseWd(ToolConfig cfg, string swtch, string args)
         {
             if (swtch == "-wd")
             {
-                workDir = args;
+                cfg.WorkDir = args;
             }
         }
 
-        private static void ParseDl(string mainEntry, ToolConfig cfg, bool isDll, string swtch, string args)
+        private static void ParseDl(ToolConfig cfg, bool isDll, string swtch, string args)
         {
             if (swtch == "-dp")
             {
@@ -283,7 +334,7 @@ namespace net.sf.jni4net.proxygen
             }
         }
 
-        private static void ParseCp(string mainEntry, ToolConfig cfg, bool isCp, string swtch, string args)
+        private static void ParseCp(ToolConfig cfg, bool isCp, string swtch, string args)
         {
             if (swtch == "-cp")
             {
